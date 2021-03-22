@@ -12,7 +12,7 @@ var version = "debug"
 
 func main() {
 	if len(os.Args) < 3 && !(len(os.Args) == 2 && strings.ToUpper(os.Args[1]) == "LIST") {
-		fmt.Println("Simple DNS lookup tool (github.com/pschou/dns), version: "+version+
+		fmt.Println("Simple DNS lookup tool, Written by paul (paulschou.com), Docs: github.com/pschou/dns, Version: "+version+
 			"\n\nSyntax:", os.Args[0], "TYPE HOST\n"+
 			"  TYPE := A, AAAA  - Lookup said record\n"+
 			"          PTR  - Reverse lookup ip\n"+

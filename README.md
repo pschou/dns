@@ -1,6 +1,6 @@
-# dns
+# dnsq
 
-Simple commandline dns lookup utility intended for ease of bash scripting in an RPM specfile.
+Simple Domain Name System Query commandline tool intended for ease of bash scripting in an RPM specfile.
 
 ## Usage
 ```
