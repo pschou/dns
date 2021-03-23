@@ -6,7 +6,14 @@ bash scripting in an RPM specfile.
 The intended use of this tool, is to allow bash escapes to have the ability to do
 DNS queries without extra string parsing.  For example:
 
-`[schou]$ ip=($(dnsq A paulschou.com)); echo "The server's ip is ${ip[0]}."`
+`[schou]$ ip=($(dnsq A paulschou.com)); echo "The server's IP is ${ip[0]}."`
+
+Likewise, for service records:
+
+```
+[schou]$ s=($(dnsq SRV _jabber._tcp.example.com)); echo "The jabber server is at ${s[0]}."
+The jabber server is at hostname.example.com:5269.
+```
 
 ## Usage
 ```

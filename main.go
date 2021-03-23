@@ -68,7 +68,7 @@ func main() {
 					}
 				}
 				if r.Rcode != dns.RcodeSuccess {
-					err = errors.New("lookup error")
+					err = errors.New("A lookup error " + os.Args[2])
 				}
 			}
 
@@ -83,7 +83,7 @@ func main() {
 					}
 				}
 				if r.Rcode != dns.RcodeSuccess {
-					err = errors.New("lookup error")
+					err = errors.New("AAAA lookup error " + os.Args[2])
 				}
 			}
 
@@ -99,7 +99,7 @@ func main() {
 					}
 				}
 				if r.Rcode != dns.RcodeSuccess {
-					err = errors.New("lookup error")
+					err = errors.New("PTR lookup error " + os.Args[2])
 				}
 			}
 
@@ -116,7 +116,7 @@ func main() {
 					}
 				}
 				if r.Rcode != dns.RcodeSuccess {
-					err = errors.New("lookup error")
+					err = errors.New("MX lookup error " + os.Args[2])
 				}
 			}
 
@@ -131,7 +131,7 @@ func main() {
 					}
 				}
 				if r.Rcode != dns.RcodeSuccess {
-					err = errors.New("lookup error")
+					err = errors.New("CNAME lookup error " + os.Args[2])
 				}
 			}
 
@@ -148,7 +148,7 @@ func main() {
 					}
 				}
 				if r.Rcode != dns.RcodeSuccess {
-					err = errors.New("lookup error")
+					err = errors.New("TXT lookup error " + os.Args[2])
 				}
 			}
 
@@ -170,7 +170,7 @@ func main() {
 					fmt.Printf("%s:%d\n", strings.TrimSuffix(mx.Target, "."), mx.Port)
 				}
 				if r.Rcode != dns.RcodeSuccess {
-					err = errors.New("lookup error")
+					err = errors.New("SRV lookup error " + os.Args[2])
 				}
 			}
 
