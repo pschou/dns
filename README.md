@@ -1,17 +1,23 @@
 # dnsq
 
-Simple Domain Name System Query commandline tool intended for ease of bash scripting in an RPM specfile.
+Simple Domain Name System Querier (DNSQ) commandline tool intended for ease of
+bash scripting in an RPM specfile.
+
+The intended use of this tool, is to allow bash escapes to have the ability to do
+DNS queries without extra string parsing.  For example:
+
+`$ echo The server's ip is $(dnsq paulschou.com)`
 
 ## Usage
 ```
-$ ./dns
-Simple DNS lookup tool, written by Paul Schou (github.com/pschou/dns), version: 0.1.20210322.1757
+$ ./dnsq Simple DNS lookup tool, Written by paul (paulschou.com), Docs: github.com/pschou/dns
 
-Syntax: ./dns TYPE HOST
-  TYPE := A, AAAA  - Lookup said record
-          PTR  - Reverse lookup ip
-  HOST := Source value for lookup, IP or FQDN
-./dns LIST - list all dns servers
+Syntax: ./dnsq TYPE HOST [SERVER]
+  TYPE   := A, AAAA, CNAME, MX, SRV, TXT - Lookup said record
+            PTR  - Reverse lookup ip
+            LIST - list all dns servers
+  HOST   := Source value for lookup, IP or FQDN
+  SERVER := Optional, which DNS server to query
 ```
 
 ## Examples
