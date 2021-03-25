@@ -1,27 +1,61 @@
 package main
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"github.com/miekg/dns"
 	"math/rand"
 	"net"
+	"net/http"
 	"os"
 	"sort"
 	"strings"
+	"unsafe"
 )
 
 var version = "debug"
 
+func seedRand() {
+	buffer := make([]byte, 8)
+	file, err := os.Open("/dev/urandom")
+	if err != nil {
+		if debug {
+			fmt.Println("error opening random", err)
+		}
+		return
+	}
+	defer file.Close()
+	bytesread, err := file.Read(buffer)
+	if err != nil || bytesread != 8 {
+		if debug {
+			fmt.Println("error reading random", err)
+		}
+		return
+	}
+	rand.Seed(*(*int64)(unsafe.Pointer(&buffer)))
+}
+
+var debug = false
+
 func main() {
-	if len(os.Args) < 3 && !(len(os.Args) == 2 && strings.ToUpper(os.Args[1]) == "LIST") {
-		fmt.Println("Simple DNS lookup tool, Written by paul (paulschou.com), Docs: github.com/pschou/dns, Version: "+version+
+	if len(os.Args) > 1 && os.Args[1] == "-debug" {
+		debug = true
+		os.Args = os.Args[1:]
+	}
+
+	if len(os.Args) < 3 && !(len(os.Args) == 2 && (strings.ToUpper(os.Args[1]) == "LIST" || strings.ToUpper(os.Args[1]) == "MYIP")) {
+		fmt.Println("Simple DNS lookup tool, Written by paul (paulschou.com), Docs: github.com/pschou/dnsq, Version: "+version+
 			"\n\nSyntax:", os.Args[0], "TYPE HOST [SERVER]\n"+
 			"  TYPE   := A, AAAA, CNAME, MX, SRV, TXT - Lookup said record\n"+
 			"            PTR  - Reverse lookup ip\n"+
-			"            LIST - list all dns servers\n"+
+			"            LIST - List all dns servers\n"+
+			"            MYIP - Try to determine this systems routeable IP.\n"+
 			"  HOST   := Source value for lookup, IP or FQDN\n"+
-			"  SERVER := Optional, which DNS server to query\n")
+			"  SERVER := Optional, which DNS server to query\n"+
+			"For querying the IP address from a custom HTTPS endpoint use:\n"+
+			"  WHATISMYIP=ifconfig.me", os.Args[0], "MYIP")
+		os.Exit(1)
 		return
 	}
 
@@ -31,6 +65,7 @@ func main() {
 	m := new(dns.Msg)
 	m.RecursionDesired = true
 
+serverLoop:
 	for i := 0; i < len(config.Servers) || len(os.Args) > 3 && (i == 0 || err != nil); i++ {
 		var server string
 		if len(os.Args) > 3 {
@@ -42,7 +77,7 @@ func main() {
 					server = os.Args[3]
 				}
 			} else {
-				break
+				break serverLoop
 			}
 		} else {
 			server = config.Servers[i] + ":" + config.Port
@@ -54,8 +89,107 @@ func main() {
 				for _, h := range config.Servers {
 					fmt.Println(h)
 				}
-				return
+				break
 			}
+
+		case "MYIP":
+			ifaces, err := net.Interfaces()
+			if err != nil {
+				break serverLoop
+			}
+			var myIPs [](net.IP)
+			for _, i := range ifaces {
+				addrs, err := i.Addrs()
+				if err != nil {
+					break serverLoop
+				}
+				for _, addr := range addrs {
+					var ip net.IP
+					switch v := addr.(type) {
+					case *net.IPNet:
+						ip = v.IP
+					case *net.IPAddr:
+						ip = v.IP
+					}
+					if ip != nil {
+						var private bool
+						private, err = isPrivateIP(ip)
+						if err != nil {
+							break serverLoop
+						}
+						if !private {
+							myIPs = append(myIPs, ip)
+						}
+					}
+					//if
+					// process IP address
+				}
+			}
+			if len(myIPs) == 0 {
+				lookups := []string{
+					"http://checkip.amazonaws.com", "https://checkip.amazonaws.com",
+					"http://ifconfig.me", "https://ifconfig.me",
+					"http://icanhazip.com", "https://icanhazip.com",
+					"http://ipecho.net/plain", "https://ipecho.net/plain",
+					"http://ifconfig.co", "https://ifconfig.co",
+				}
+				whatIsMyIP := os.Getenv("WHATISMYIP")
+				if len(whatIsMyIP) > 0 {
+					lookups = strings.Split(whatIsMyIP, ",")
+				}
+				if len(lookups) > 1 {
+					seedRand()
+					rand.Shuffle(len(lookups), func(i, j int) { lookups[i], lookups[j] = lookups[j], lookups[i] })
+				}
+				for _, lookup := range lookups {
+					if debug {
+						fmt.Println(lookup)
+					}
+					var resp *http.Response
+					http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+					resp, err = http.Get(lookup)
+					if err != nil {
+						if debug {
+							fmt.Println("err", err)
+						}
+						continue
+					}
+
+					if resp.Header.Get("Location") != "" {
+						newLoc := resp.Header.Get("Location")
+						if debug {
+							fmt.Println("found new location", newLoc)
+						}
+						resp.Body.Close()
+						resp, err = http.Get(newLoc)
+						if err != nil {
+							continue
+						}
+						defer resp.Body.Close()
+					}
+					buffer := make([]byte, 128)
+					var buflen int
+					buflen, err = resp.Body.Read(buffer)
+					if buflen == 0 {
+						if debug {
+							fmt.Println("err", err)
+						}
+						continue
+					}
+					IP := net.ParseIP(strings.TrimSpace(string(buffer[:buflen])))
+					if IP == nil {
+						continue
+					}
+					err = nil
+					fmt.Println(IP.String())
+					break serverLoop
+				}
+				break serverLoop
+			}
+			for _, ip := range myIPs {
+				fmt.Println(ip)
+			}
+			break
 
 		case "A":
 			var r *dns.Msg
@@ -96,6 +230,7 @@ func main() {
 				for _, a := range r.Answer {
 					if mx, ok := a.(*dns.PTR); ok {
 						fmt.Printf("%s\n", strings.TrimSuffix(string(mx.Ptr), "."))
+						break serverLoop
 					}
 				}
 				if r.Rcode != dns.RcodeSuccess {
@@ -163,6 +298,7 @@ func main() {
 						list = append(list, mx)
 					}
 				}
+				seedRand()
 				rand.Shuffle(len(list), func(i, j int) { list[i], list[j] = list[j], list[i] })
 				sort.Sort(byPrioityWeight(list))
 
@@ -201,4 +337,32 @@ func (list byPrioityWeight) Less(i, j int) bool {
 	}
 
 	return false
+}
+
+func isPrivateIP(IP net.IP) (bool, error) {
+	var err error
+	//IP := net.ParseIP(ip)
+	if IP == nil {
+		err = errors.New("Invalid IP")
+	} else {
+		for _, cidr := range []string{
+			"127.0.0.0/8",    // IPv4 loopback
+			"10.0.0.0/8",     // RFC1918
+			"172.16.0.0/12",  // RFC1918
+			"192.168.0.0/16", // RFC1918
+			"169.254.0.0/16", // RFC3927 link-local
+			"::1/128",        // IPv6 loopback
+			"fe80::/10",      // IPv6 link-local
+			"fc00::/7",       // IPv6 unique local addr
+		} {
+			_, block, err := net.ParseCIDR(cidr)
+			if err != nil {
+				return false, err
+			}
+			if block.Contains(IP) {
+				return true, nil
+			}
+		}
+	}
+	return false, err
 }
